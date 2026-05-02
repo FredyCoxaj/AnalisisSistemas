@@ -1,22 +1,28 @@
 package miumg.edu.gt.controlinventariopeps.vista;
 
+import miumg.edu.gt.controlinventariopeps.dao.LoteDAO;
 import miumg.edu.gt.controlinventariopeps.dao.ProductoDAO;
+import miumg.edu.gt.controlinventariopeps.modelo.Lote;
 import miumg.edu.gt.controlinventariopeps.modelo.Producto;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 
 public class PanelProductos extends JPanel {
     private JTable tablaProductos;
     private DefaultTableModel modeloTabla;
-    private final ProductoDAO productoDAO;
+    private ProductoDAO productoDAO;
+    private LoteDAO loteDAO;
 
-    private JTextField txtNombre, txtDescripcion, txtPrecio;
+    private JTextField txtNombre, txtDescripcion, txtPrecio, txtStock;
     private JButton btnAgregar, btnEditar, btnEliminar, btnActualizar;
 
     public PanelProductos() {
         productoDAO = new ProductoDAO();
+        loteDAO = new LoteDAO();
         initComponents();
         cargarProductos();
     }
@@ -25,7 +31,6 @@ public class PanelProductos extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Panel formulario
         JPanel panelFormulario = new JPanel(new GridBagLayout());
         panelFormulario.setBorder(BorderFactory.createTitledBorder("Datos del Producto"));
         GridBagConstraints gbc = new GridBagConstraints();
@@ -50,22 +55,20 @@ public class PanelProductos extends JPanel {
         gbc.gridx = 1;
         panelFormulario.add(txtPrecio, gbc);
 
-        // Botones
+        // Campo Stock editable (solo para nuevo producto)
+        gbc.gridx = 0; gbc.gridy = 3;
+        panelFormulario.add(new JLabel("Stock Inicial:"), gbc);
+        txtStock = new JTextField("0", 20);
+        gbc.gridx = 1;
+        panelFormulario.add(txtStock, gbc);
+
         JPanel panelBotones = new JPanel(new FlowLayout());
         btnAgregar = new JButton("Agregar");
-        btnAgregar.setBackground(new Color(40, 167, 69));
-        btnAgregar.setForeground(Color.WHITE);
         btnAgregar.addActionListener(e -> agregarProducto());
-
         btnEditar = new JButton("Editar");
-        btnEditar.setBackground(new Color(255, 193, 7));
         btnEditar.addActionListener(e -> editarProducto());
-
         btnEliminar = new JButton("Eliminar");
-        btnEliminar.setBackground(new Color(220, 53, 69));
-        btnEliminar.setForeground(Color.WHITE);
         btnEliminar.addActionListener(e -> eliminarProducto());
-
         btnActualizar = new JButton("Actualizar");
         btnActualizar.addActionListener(e -> cargarProductos());
 
@@ -74,7 +77,7 @@ public class PanelProductos extends JPanel {
         panelBotones.add(btnEliminar);
         panelBotones.add(btnActualizar);
 
-        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.gridx = 0; gbc.gridy = 4;
         gbc.gridwidth = 2;
         panelFormulario.add(panelBotones, gbc);
 
@@ -119,57 +122,93 @@ public class PanelProductos extends JPanel {
     }
 
     private void agregarProducto() {
-        if (validarCampos()) {
+        if (!validarCampos()) return;
+        
+        try {
+            String nombre = txtNombre.getText().trim();
+            String descripcion = txtDescripcion.getText().trim();
+            double precio = Double.parseDouble(txtPrecio.getText());
+            int stockInicial = Integer.parseInt(txtStock.getText().trim());
+            if (stockInicial < 0) {
+                JOptionPane.showMessageDialog(this, "El stock inicial no puede ser negativo");
+                return;
+            }
+
             Producto producto = new Producto();
-            producto.setNombreProducto(txtNombre.getText());
-            producto.setDescripcion(txtDescripcion.getText());
-            producto.setPrecioUnitario(Double.parseDouble(txtPrecio.getText()));
+            producto.setNombreProducto(nombre);
+            producto.setDescripcion(descripcion);
+            producto.setPrecioUnitario(precio);
+
             if (productoDAO.insertarProducto(producto)) {
-                JOptionPane.showMessageDialog(this, "Producto agregado exitosamente");
+                int idProducto = producto.getIdProducto();
+                // Si el usuario puso stock inicial > 0, crear un lote automático
+                if (stockInicial > 0) {
+                    Lote lote = new Lote();
+                    lote.setIdProducto(idProducto);
+                    lote.setCodigoLote("AUTO-" + idProducto);  // código automático
+                    lote.setFechaIngreso(Date.valueOf(LocalDate.now()));
+                    lote.setFechaVencimiento(null);  // sin vencimiento
+                    lote.setCantidadInicial(stockInicial);
+                    lote.setCostoUnitario(precio);
+                    
+                    if (loteDAO.insertarLote(lote)) {
+                        JOptionPane.showMessageDialog(this, "Producto agregado con stock inicial de " + stockInicial + " unidades.");
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Producto creado pero no se pudo crear el lote automático. Deberá agregar lotes manualmente.");
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(this, "Producto agregado sin stock inicial.");
+                }
                 limpiarCampos();
                 cargarProductos();
             }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Ingrese valores numéricos válidos para precio y stock.");
         }
     }
 
     private void editarProducto() {
         int fila = tablaProductos.getSelectedRow();
-        if (fila >= 0) {
-            int idProducto = (int) modeloTabla.getValueAt(fila, 0);
-            if (validarCampos()) {
-                Producto producto = new Producto();
-                producto.setIdProducto(idProducto);
-                producto.setNombreProducto(txtNombre.getText());
-                producto.setDescripcion(txtDescripcion.getText());
-                producto.setPrecioUnitario(Double.parseDouble(txtPrecio.getText()));
-                if (productoDAO.actualizarProducto(producto)) {
-                    JOptionPane.showMessageDialog(this, "Producto actualizado exitosamente");
-                    limpiarCampos();
-                    cargarProductos();
-                }
-            }
-        } else {
+        if (fila < 0) {
             JOptionPane.showMessageDialog(this, "Seleccione un producto para editar");
+            return;
+        }
+        if (!validarCampos()) return;
+        
+        int idProducto = (int) modeloTabla.getValueAt(fila, 0);
+        Producto producto = new Producto();
+        producto.setIdProducto(idProducto);
+        producto.setNombreProducto(txtNombre.getText().trim());
+        producto.setDescripcion(txtDescripcion.getText().trim());
+        producto.setPrecioUnitario(Double.parseDouble(txtPrecio.getText()));
+        // No se modifica el stock total aquí (se mantiene el existente)
+        
+        if (productoDAO.actualizarProducto(producto)) {
+            JOptionPane.showMessageDialog(this, "Producto actualizado. El stock no se modifica desde aquí.");
+            limpiarCampos();
+            cargarProductos();
         }
     }
 
     private void eliminarProducto() {
         int fila = tablaProductos.getSelectedRow();
-        if (fila >= 0) {
-            int idProducto = (int) modeloTabla.getValueAt(fila, 0);
-            String nombre = (String) modeloTabla.getValueAt(fila, 1);
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "¿Está seguro de eliminar el producto: " + nombre + "?",
-                    "Confirmar eliminación", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                if (productoDAO.eliminarProducto(idProducto)) {
-                    JOptionPane.showMessageDialog(this, "Producto eliminado exitosamente");
-                    limpiarCampos();
-                    cargarProductos();
-                }
-            }
-        } else {
+        if (fila < 0) {
             JOptionPane.showMessageDialog(this, "Seleccione un producto para eliminar");
+            return;
+        }
+        int idProducto = (int) modeloTabla.getValueAt(fila, 0);
+        String nombre = (String) modeloTabla.getValueAt(fila, 1);
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "¿Eliminar producto '" + nombre + "'? Se eliminarán también sus lotes (si no tienen movimientos).",
+                "Confirmar", JOptionPane.YES_NO_OPTION);
+        if (confirm == JOptionPane.YES_OPTION) {
+            if (productoDAO.eliminarProducto(idProducto)) {
+                JOptionPane.showMessageDialog(this, "Producto eliminado.");
+                limpiarCampos();
+                cargarProductos();
+            } else {
+                JOptionPane.showMessageDialog(this, "No se pudo eliminar. El producto podría tener ventas asociadas.");
+            }
         }
     }
 
@@ -180,6 +219,9 @@ public class PanelProductos extends JPanel {
             txtDescripcion.setText((String) modeloTabla.getValueAt(fila, 2));
             String precio = ((String) modeloTabla.getValueAt(fila, 3)).replace("$", "");
             txtPrecio.setText(precio);
+            int stock = (int) modeloTabla.getValueAt(fila, 4);
+            txtStock.setText(String.valueOf(stock));  // Mostrar stock actual (solo lectura visual)
+            txtStock.setEditable(false);  // No permitir editar stock en productos existentes
         }
     }
 
@@ -205,6 +247,8 @@ public class PanelProductos extends JPanel {
         txtNombre.setText("");
         txtDescripcion.setText("");
         txtPrecio.setText("");
+        txtStock.setText("0");
+        txtStock.setEditable(true);  // Para nuevos productos se puede escribir
         tablaProductos.clearSelection();
     }
 }
