@@ -22,14 +22,25 @@ public class Producto {
     // Getters y Setters
     public int getIdProducto() { return idProducto; }
     public void setIdProducto(int idProducto) { this.idProducto = idProducto; }
+
     public String getNombreProducto() { return nombreProducto; }
     public void setNombreProducto(String nombreProducto) { this.nombreProducto = nombreProducto; }
+
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }
+
     public double getPrecioUnitario() { return precioUnitario; }
     public void setPrecioUnitario(double precioUnitario) { this.precioUnitario = precioUnitario; }
+
     public int getStockTotal() { return stockTotal; }
     public void setStockTotal(int stockTotal) { this.stockTotal = stockTotal; }
+
     public boolean isActivo() { return activo; }
     public void setActivo(boolean activo) { this.activo = activo; }
+
+    // Método toString para mostrar el nombre en JComboBox
+    @Override
+    public String toString() {
+        return this.nombreProducto;
+    }
 }

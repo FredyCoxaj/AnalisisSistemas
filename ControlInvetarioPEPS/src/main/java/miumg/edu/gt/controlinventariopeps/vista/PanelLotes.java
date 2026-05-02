@@ -14,8 +14,8 @@ public class PanelLotes extends JPanel {
     private JComboBox<Producto> cmbProductos;
     private JTable tablaLotes;
     private DefaultTableModel modeloTabla;
-    private final ProductoDAO productoDAO;
-    private final LoteDAO loteDAO;
+    private ProductoDAO productoDAO;
+    private LoteDAO loteDAO;
 
     private JTextField txtCodigoLote, txtCantidad, txtCosto;
     private JSpinner spnFechaIngreso, spnFechaVencimiento;
@@ -32,27 +32,33 @@ public class PanelLotes extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Panel selección producto
-        JPanel panelSeleccion = new JPanel(new FlowLayout());
+        // Panel superior: selección de producto y formulario
+        JPanel panelNorte = new JPanel(new BorderLayout(10, 10));
+
+        // ---- Selección de producto ----
+        JPanel panelSeleccion = new JPanel(new FlowLayout(FlowLayout.LEFT));
         panelSeleccion.setBorder(BorderFactory.createTitledBorder("Seleccionar Producto"));
         panelSeleccion.add(new JLabel("Producto:"));
         cmbProductos = new JComboBox<>();
         cmbProductos.addActionListener(e -> cargarLotes());
         panelSeleccion.add(cmbProductos);
+        panelNorte.add(panelSeleccion, BorderLayout.NORTH);
 
-        // Panel formulario
+        // ---- Formulario de registro de lote ----
         JPanel panelFormulario = new JPanel(new GridBagLayout());
         panelFormulario.setBorder(BorderFactory.createTitledBorder("Registrar Nuevo Lote"));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
+        // Código Lote
         gbc.gridx = 0; gbc.gridy = 0;
         panelFormulario.add(new JLabel("Código Lote:"), gbc);
         txtCodigoLote = new JTextField(15);
         gbc.gridx = 1;
         panelFormulario.add(txtCodigoLote, gbc);
 
+        // Fecha Ingreso
         gbc.gridx = 0; gbc.gridy = 1;
         panelFormulario.add(new JLabel("Fecha Ingreso:"), gbc);
         spnFechaIngreso = new JSpinner(new SpinnerDateModel());
@@ -60,6 +66,7 @@ public class PanelLotes extends JPanel {
         gbc.gridx = 1;
         panelFormulario.add(spnFechaIngreso, gbc);
 
+        // Fecha Vencimiento
         gbc.gridx = 0; gbc.gridy = 2;
         panelFormulario.add(new JLabel("Fecha Vencimiento:"), gbc);
         spnFechaVencimiento = new JSpinner(new SpinnerDateModel());
@@ -67,27 +74,31 @@ public class PanelLotes extends JPanel {
         gbc.gridx = 1;
         panelFormulario.add(spnFechaVencimiento, gbc);
 
+        // Cantidad Inicial
         gbc.gridx = 0; gbc.gridy = 3;
         panelFormulario.add(new JLabel("Cantidad Inicial:"), gbc);
         txtCantidad = new JTextField(15);
         gbc.gridx = 1;
         panelFormulario.add(txtCantidad, gbc);
 
+        // Costo Unitario (en Quetzales)
         gbc.gridx = 0; gbc.gridy = 4;
-        panelFormulario.add(new JLabel("Costo Unitario:"), gbc);
+        panelFormulario.add(new JLabel("Costo Unitario (Q):"), gbc);
         txtCosto = new JTextField(15);
         gbc.gridx = 1;
         panelFormulario.add(txtCosto, gbc);
 
+        // Botón Registrar (sin personalizaciones para que sea visible)
         btnAgregar = new JButton("Registrar Lote");
-        btnAgregar.setBackground(new Color(40, 167, 69));
-        btnAgregar.setForeground(Color.WHITE);
         btnAgregar.addActionListener(e -> agregarLote());
         gbc.gridx = 0; gbc.gridy = 5;
         gbc.gridwidth = 2;
         panelFormulario.add(btnAgregar, gbc);
 
-        // Tabla
+        panelNorte.add(panelFormulario, BorderLayout.CENTER);
+        add(panelNorte, BorderLayout.NORTH);
+
+        // ---- Tabla de lotes ----
         modeloTabla = new DefaultTableModel() {
             @Override
             public boolean isCellEditable(int row, int column) { return false; }
@@ -98,23 +109,18 @@ public class PanelLotes extends JPanel {
         modeloTabla.addColumn("F. Vencimiento");
         modeloTabla.addColumn("Cant. Inicial");
         modeloTabla.addColumn("Stock Actual");
-        modeloTabla.addColumn("Costo Unitario");
+        modeloTabla.addColumn("Costo Unitario (Q)");
 
         tablaLotes = new JTable(modeloTabla);
         JScrollPane scrollPane = new JScrollPane(tablaLotes);
         scrollPane.setBorder(BorderFactory.createTitledBorder("Lotes del Producto"));
+        add(scrollPane, BorderLayout.CENTER);
 
+        // ---- Botón Actualizar (abajo) ----
         JPanel panelBotonActualizar = new JPanel(new FlowLayout());
         btnActualizar = new JButton("Actualizar Lista");
         btnActualizar.addActionListener(e -> cargarLotes());
         panelBotonActualizar.add(btnActualizar);
-
-        JPanel panelNorte = new JPanel(new BorderLayout());
-        panelNorte.add(panelSeleccion, BorderLayout.NORTH);
-        panelNorte.add(panelFormulario, BorderLayout.CENTER);
-
-        add(panelNorte, BorderLayout.NORTH);
-        add(scrollPane, BorderLayout.CENTER);
         add(panelBotonActualizar, BorderLayout.SOUTH);
     }
 
@@ -139,7 +145,7 @@ public class PanelLotes extends JPanel {
                     l.getFechaVencimiento(),
                     l.getCantidadInicial(),
                     l.getStockActual(),
-                    String.format("$%.2f", l.getCostoUnitario())
+                    String.format("Q %.2f", l.getCostoUnitario())  // Cambiado de $ a Q
                 });
             }
         }
@@ -156,20 +162,20 @@ public class PanelLotes extends JPanel {
             return;
         }
         try {
-            int cantidad = Integer.parseInt(txtCantidad.getText());
-            double costo = Double.parseDouble(txtCosto.getText());
+            int cantidad = Integer.parseInt(txtCantidad.getText().trim());
+            double costo = Double.parseDouble(txtCosto.getText().trim());
             if (cantidad <= 0) {
                 JOptionPane.showMessageDialog(this, "La cantidad debe ser mayor a 0");
                 return;
             }
-            if (costo < 0) {
-                JOptionPane.showMessageDialog(this, "El costo no puede ser negativo");
+            if (costo <= 0) {
+                JOptionPane.showMessageDialog(this, "El costo debe ser mayor a 0");
                 return;
             }
 
             Lote lote = new Lote();
             lote.setIdProducto(productoSeleccionado.getIdProducto());
-            lote.setCodigoLote(txtCodigoLote.getText());
+            lote.setCodigoLote(txtCodigoLote.getText().trim());
             lote.setFechaIngreso(new Date(((java.util.Date) spnFechaIngreso.getValue()).getTime()));
             lote.setFechaVencimiento(new Date(((java.util.Date) spnFechaVencimiento.getValue()).getTime()));
             lote.setCantidadInicial(cantidad);
@@ -179,10 +185,12 @@ public class PanelLotes extends JPanel {
                 JOptionPane.showMessageDialog(this, "Lote registrado exitosamente");
                 limpiarCampos();
                 cargarLotes();
-                cargarProductos();  // para refrescar stock en combo
+                cargarProductos();  // Para refrescar el stock del producto en el combo
+            } else {
+                JOptionPane.showMessageDialog(this, "Error al registrar el lote. Verifique que el código no esté duplicado.");
             }
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Ingrese valores numéricos válidos");
+            JOptionPane.showMessageDialog(this, "Ingrese valores numéricos válidos para cantidad y costo.");
         }
     }
 
